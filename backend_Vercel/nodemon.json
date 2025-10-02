@@ -1,0 +1,15 @@
+{
+  "watch": ["."],
+  "ext": "js,mjs,cjs,json",
+  "ignore": ["node_modules/", "*.test.js", "*.spec.js", ".server.lock", "*.log"],
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000,
+  "restartable": "rs",
+  "verbose": true,
+  "events": {
+    "restart": "echo '🔄 Server restarting...'",
+    "crash": "echo '💥 Server crashed, restarting...'"
+  }
+}
