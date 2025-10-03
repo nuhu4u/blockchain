@@ -74,45 +74,8 @@ export function VotingModal({ isOpen, onClose, election, voterInfo, onVoteSucces
   const getCandidates = (): Candidate[] => {
     if (election?.contestants && election.contestants.length > 0) {
       
-      // Static candidate data to preserve original details
-      const staticCandidates = [
-        {
-          id: "candidate-1",
-          name: "Adebayo Ogundimu",
-          party: "All Progressives Congress (APC)",
-          partyPicture: "/party-logos/apc.webp",
-          age: 58,
-          qualification: "PhD Political Science, Former Governor",
-          runningMate: "Dr. Fatima Abdullahi",
-        },
-        {
-          id: "candidate-2", 
-          name: "Chinwe Okonkwo",
-          party: "People's Democratic Party (PDP)",
-          partyPicture: "/party-logos/pdp.webp",
-          age: 52,
-          qualification: "MBA Business Administration, Former Senator",
-          runningMate: "Alhaji Ibrahim Musa",
-        },
-        {
-          id: "candidate-3",
-          name: "Emmanuel Okafor",
-          party: "Labour Party (LP)",
-          partyPicture: "/party-logos/labour-party.jpg",
-          age: 45,
-          qualification: "LLB Law, Human Rights Activist",
-          runningMate: "Dr. Aisha Bello",
-        },
-        {
-          id: "candidate-4",
-          name: "Fatima Ibrahim",
-          party: "New Nigeria People's Party (NNPP)",
-          partyPicture: "/party-logos/nnpp.jpg",
-          age: 49,
-          qualification: "MSc Economics, Former Minister",
-          runningMate: "Chief Olumide Adebayo",
-        }
-      ];
+      // Use actual static candidates from the data file
+      const staticCandidates = STATIC_CANDIDATES;
 
       // Use actual election contestants with their party pictures
       return election.contestants.map((contestant, index) => {
@@ -122,7 +85,7 @@ export function VotingModal({ isOpen, onClose, election, voterInfo, onVoteSucces
           id: contestant.id || staticCandidate.id,
           name: contestant.name || staticCandidate.name, // Use edited name from election
           party: contestant.party || staticCandidate.party, // Use actual party from election
-          partyPicture: contestant.partyPicture || staticCandidate.partyPicture, // Use actual party picture from election
+          partyPicture: staticCandidate.partyPicture, // Use static party picture
           age: staticCandidate.age, // Keep original age
           qualification: staticCandidate.qualification, // Keep original qualification
           runningMate: contestant.running_mate || contestant.runningMate || staticCandidate.runningMate // Use actual running mate from election

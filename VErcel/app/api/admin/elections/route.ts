@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         name: contestant.name,
         running_mate: contestant.runningMate,
         party: contestant.party || 'Independent',
-        position: index + 1
+        position: (index + 1).toString()
       }))
     }
 

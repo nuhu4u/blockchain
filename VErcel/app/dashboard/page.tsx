@@ -315,7 +315,10 @@ export default function VoterDashboard() {
   ]
 
   const displayElections = elections // Non-voted elections for active elections tab
-  const allElections = [...elections, ...votedElections] // All elections for results tab
+  // Create unique elections array to avoid duplicate keys
+  const allElections = [...elections, ...votedElections.filter(votedElection => 
+    !elections.some(election => election.id === votedElection.id)
+  )]
   const displayStats = stats || {
     totalRegisteredVoters: 84004084,
     totalVotesCast: 45234567,
@@ -704,8 +707,8 @@ export default function VoterDashboard() {
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 mb-4">Available Elections</h2>
                   <div className="grid gap-6">
-                    {displayElections.map((election) => (
-                      <Card key={election.id} className="relative">
+                    {displayElections.map((election, index) => (
+                      <Card key={`display-${election.id}-${index}`} className="relative">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div>
@@ -824,8 +827,8 @@ export default function VoterDashboard() {
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 mb-4">Live Election Results</h2>
                   <div className="grid gap-6">
-                    {allElections.length > 0 ? allElections.map((election) => (
-                      <Card key={election.id}>
+                    {allElections.length > 0 ? allElections.map((election, index) => (
+                      <Card key={`results-${election.id}-${index}`}>
                         <CardHeader>
                           <CardTitle className="flex items-center justify-between">
                             <span>{election.title}</span>
@@ -926,7 +929,7 @@ export default function VoterDashboard() {
                         {(() => {
                           return null;
                         })()}
-                        {votedElections.length > 0 ? votedElections.map((election: any) => {
+                        {votedElections.length > 0 ? votedElections.map((election: any, index: number) => {
                             // Find the vote for this election
                             const vote = myVotes.find((v: any) => {
                               const match1 = v.election_id === election.id;
@@ -959,7 +962,7 @@ export default function VoterDashboard() {
                             };
                             return (
                               <div
-                                key={vote._id || vote.id || election.id}
+                                key={`vote-${vote._id || vote.id || `${election.id}-${index}`}`}
                                 className="p-4 bg-green-50 rounded-lg border border-green-200"
                               >
                                 <div className="flex items-start justify-between">
