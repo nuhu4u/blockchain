@@ -1,6 +1,7 @@
 const { ApiError } = require('../utils/apiError');
 const { MongoClient } = require('mongodb');
 const ElectionService = require('../services/electionService');
+const { countVerifiedVoters, countAllVoters } = require('../utils/voterUtils');
 
 // Register new admin user
 const registerAdmin = async (req, res, next) => {
@@ -120,17 +121,20 @@ const getDashboard = async (req, res, next) => {
         reports = [];
       }
 
-      // Get observer stats from observers collection
-      const totalObservers = await db.collection('observers').countDocuments();
-      const pendingObservers = await db.collection('observers').countDocuments({ status: 'pending' });
-      const approvedObservers = await db.collection('observers').countDocuments({ status: 'approved' });
-      const rejectedObservers = await db.collection('observers').countDocuments({ status: 'rejected' });
+      // Get observer stats from users collection (where role = 'OBSERVER')
+      const totalObservers = await db.collection('users').countDocuments({ role: 'OBSERVER' });
+      const pendingObservers = await db.collection('users').countDocuments({ role: 'OBSERVER', status: 'pending' });
+      const approvedObservers = await db.collection('users').countDocuments({ role: 'OBSERVER', status: 'approved' });
+      const rejectedObservers = await db.collection('users').countDocuments({ role: 'OBSERVER', status: 'rejected' });
       
-      // Get other stats
-      const totalVoters = await db.collection('users').countDocuments({ role: 'VOTER' });
+      // Get other stats - count all verified and completed users (both VOTER and USER roles)
+      const totalVotersAll = await countAllVoters(db);
+      const totalVotersVerified = await countVerifiedVoters(db);
       const totalReports = await db.collection('observationReport').countDocuments({});
       
-      console.log(`📊 Actual registered voters count from database: ${totalVoters}`);
+      console.log(`📊 Voter counts from database:`);
+      console.log(`   - All users (role: VOTER or USER): ${totalVotersAll}`);
+      console.log(`   - Verified users (nin_verified: true, registration_completed: true): ${totalVotersVerified}`);
       
       // Get saved system stats (for editable values like totalRegisteredVoters)
       let savedSystemStats = null;
@@ -164,8 +168,8 @@ const getDashboard = async (req, res, next) => {
         observers: observers,
         reports: reports,
         stats: {
-          // Use actual database count of registered voters
-          totalVoters: totalVoters,
+          // Use verified and completed voters count (more meaningful for admin)
+          totalVoters: totalVotersVerified,
           // Use correct geodata values: 368 LGAs × 25 polling units per LGA = 9,200
           totalPollingUnits: 9200,
           totalLGAs: 368,
@@ -185,9 +189,18 @@ const getDashboard = async (req, res, next) => {
       console.log('✅ Admin dashboard data prepared:', {
         observersCount: observers.length,
         reportsCount: reports.length,
-        actualTotalVoters: totalVoters,
+        voterCounts: {
+          allVoters: totalVotersAll,
+          verifiedVoters: totalVotersVerified,
+          displayedVoters: dashboardData.stats.totalVoters
+        },
+        observerStats: {
+          totalObservers,
+          pendingObservers,
+          approvedObservers,
+          rejectedObservers
+        },
         savedSystemStats: savedSystemStats?.totalRegisteredVoters || 'none',
-        finalTotalVoters: dashboardData.stats.totalVoters,
         stats: dashboardData.stats
       });
 

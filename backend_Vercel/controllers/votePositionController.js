@@ -1,5 +1,6 @@
 const { MongoClient, ObjectId } = require('mongodb');
 const { ApiError } = require('../utils/apiError');
+const { countVerifiedVoters } = require('../utils/voterUtils');
 
 /**
  * Vote Position Controller
@@ -38,10 +39,7 @@ async function getVotePositionData(electionId) {
     const totalVotes = votes.length;
     
     // Get registered voters count (approximate)
-    const registeredVoters = await usersCollection.countDocuments({
-      role: 'VOTER',
-      is_active: true
-    });
+    const registeredVoters = await countVerifiedVoters(db);
     
     // Calculate non-voters
     const nonVoters = Math.max(0, registeredVoters - totalVotes);
@@ -414,7 +412,7 @@ async function getVotePositionByLevel(electionId, level) {
     };
 
     // Calculate additional statistics
-    const totalRegisteredVoters = await db.collection('users').countDocuments({ role: 'VOTER' });
+    const totalRegisteredVoters = await countVerifiedVoters(db);
     const nonVoters = totalRegisteredVoters - totalVotesAcrossAllLevels;
     
     // Count unique level groups (e.g., unique polling units, wards, etc.)

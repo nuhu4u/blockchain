@@ -1,5 +1,6 @@
 const { ApiError } = require('../utils/apiError');
 const { MongoClient, ObjectId } = require('mongodb');
+const { countVerifiedVoters, countAllVoters } = require('../utils/voterUtils');
 
 /**
  * Get voter dashboard data
@@ -46,9 +47,6 @@ const getVoterDashboard = async (req, res, next) => {
         activeElectionsFromElections,
         upcomingElectionsFromElections,
         completedElectionsFromElections,
-        activeElectionsFromElection,
-        upcomingElectionsFromElection,
-        completedElectionsFromElection,
         myVotes,
         voterStats
       ] = await Promise.all([
@@ -113,42 +111,6 @@ const getVoterDashboard = async (req, res, next) => {
           }
         ]).toArray(),
         
-        // Active elections from Election collection (uppercase)
-        db.collection('Election').find({
-          status: 'ONGOING'
-        }).toArray(),
-        
-        // Upcoming elections from Election collection (uppercase)
-        db.collection('Election').find({
-          status: 'UPCOMING',
-          start_date: { $gte: new Date() }
-        }).limit(5).toArray(),
-        
-        // Completed elections from Election collection (uppercase)
-        db.collection('Election').aggregate([
-          {
-            $match: { 
-              status: 'COMPLETED'
-            }
-          },
-          {
-            $lookup: {
-              from: 'votes',
-              localField: '_id',
-              foreignField: 'election_id',
-              as: 'votes'
-            }
-          },
-          {
-            $match: {
-              'votes.voter_id': userId === 'test-user-id' ? 'test-user-id' : new ObjectId(userId)
-            }
-          },
-          {
-            $limit: 5
-          }
-        ]).toArray(),
-        
         // Voter's voting history
         (async () => {
           console.log('🔍 Dashboard: Fetching votes for user ID:', userId);
@@ -183,10 +145,10 @@ const getVoterDashboard = async (req, res, next) => {
         }));
       };
 
-      // Merge elections from both collections and transform them
-      const activeElections = transformElections([...activeElectionsFromElections, ...activeElectionsFromElection]);
-      const upcomingElections = transformElections([...upcomingElectionsFromElections, ...upcomingElectionsFromElection]);
-      const completedElections = transformElections([...completedElectionsFromElections, ...completedElectionsFromElection]);
+      // Transform elections from the elections collection
+      const activeElections = transformElections(activeElectionsFromElections);
+      const upcomingElections = transformElections(upcomingElectionsFromElections);
+      const completedElections = transformElections(completedElectionsFromElections);
       
       // Debug logging for election IDs
       console.log('🔍 Dashboard: Active elections after transformation:', activeElections.map(e => ({ id: e.id, title: e.title })));
@@ -348,23 +310,13 @@ const getDashboardStats = async (req, res, next) => {
       topCandidates
     ] = await Promise.all([
         // Total voters (users with verified NIN and completed registration)
-        db.collection('users').countDocuments({
-          role: 'VOTER',
-          nin_verified: true,
-          registration_completed: true
-      }),
+        countVerifiedVoters(db),
       
       // Total elections (from both collections)
-        Promise.all([
-          db.collection('elections').countDocuments(),
-          db.collection('Election').countDocuments()
-        ]).then(([count1, count2]) => count1 + count2),
+        db.collection('elections').countDocuments(),
       
       // Total active elections (ONGOING) (from both collections)
-        Promise.all([
-          db.collection('elections').countDocuments({ status: 'ONGOING' }),
-          db.collection('Election').countDocuments({ status: 'ONGOING' })
-        ]).then(([count1, count2]) => count1 + count2),
+        db.collection('elections').countDocuments({ status: 'ONGOING' }),
       
       // Total votes cast
         db.collection('votes').countDocuments(),
@@ -379,26 +331,15 @@ const getDashboardStats = async (req, res, next) => {
         db.collection('parties').countDocuments(),
       
       // Recent elections (last 5) - from both collections
-        Promise.all([
-          db.collection('elections').find({
-            status: { $in: ['ONGOING', 'COMPLETED'] }
-          }).sort({ created_at: -1 }).limit(5).toArray(),
-          db.collection('Election').find({
-            status: { $in: ['ONGOING', 'COMPLETED'] }
-          }).sort({ created_at: -1 }).limit(5).toArray()
-        ]).then(([elections1, elections2]) => [...elections1, ...elections2].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5)),
+        db.collection('elections').find({
+          status: { $in: ['ONGOING', 'COMPLETED'] }
+        }).sort({ created_at: -1 }).limit(5).toArray(),
       
       // Upcoming elections (next 5) - from both collections
-        Promise.all([
-          db.collection('elections').find({
-            status: 'UPCOMING',
-            start_date: { $gte: new Date() }
-          }).sort({ start_date: 1 }).limit(5).toArray(),
-          db.collection('Election').find({
-            status: 'UPCOMING',
-            start_date: { $gte: new Date() }
-          }).sort({ start_date: 1 }).limit(5).toArray()
-        ]).then(([elections1, elections2]) => [...elections1, ...elections2].sort((a, b) => new Date(a.start_date) - new Date(b.start_date)).slice(0, 5)),
+        db.collection('elections').find({
+          status: 'UPCOMING',
+          start_date: { $gte: new Date() }
+        }).sort({ start_date: 1 }).limit(5).toArray(),
         
         // Election stats by type - from both collections
         Promise.all([
@@ -410,7 +351,7 @@ const getDashboardStats = async (req, res, next) => {
               }
             }
           ]).toArray(),
-          db.collection('Election').aggregate([
+          db.collection('elections').aggregate([
             {
               $group: {
                 _id: '$election_type',
@@ -498,12 +439,9 @@ const getDashboardStats = async (req, res, next) => {
     ]);
 
     // Calculate voter turnout if we have data
-      const activeVoters = await db.collection('users').countDocuments({
-        role: 'VOTER',
-        nin_verified: true,
-        registration_completed: true,
+      const activeVoters = await countVerifiedVoters(db, {
         _id: { $in: await db.collection('votes').distinct('user_id') }
-    });
+      });
     
     const voterTurnout = totalVoters > 0 
       ? Math.round((activeVoters / totalVoters) * 100) 
@@ -593,7 +531,7 @@ const getElectionResultsSummary = async (req, res, next) => {
       );
       
       if (!election) {
-        election = await db.collection('Election').findOne(
+        election = await db.collection('elections').findOne(
           { _id: new ObjectId(id) }
         );
       }
@@ -784,18 +722,14 @@ const getVoterAnalytics = async (req, res, next) => {
       voterTurnoutByElection
     ] = await Promise.all([
       // Total voters
-        db.collection('users').countDocuments({
-          role: 'VOTER',
-          nin_verified: true,
-          registration_completed: true
-      }),
+        countVerifiedVoters(db),
       
       // Gender distribution
         db.collection('users').aggregate([
           {
             $match: {
-          role: 'VOTER',
-          nin_verified: true,
+              $or: [{ role: 'VOTER' }, { role: 'USER' }],
+              nin_verified: true,
               registration_completed: true,
               gender: { $ne: null }
             }
@@ -815,7 +749,7 @@ const getVoterAnalytics = async (req, res, next) => {
         db.collection('users').aggregate([
           {
             $match: {
-              role: 'VOTER',
+              $or: [{ role: 'VOTER' }, { role: 'USER' }],
               nin_verified: true,
               registration_completed: true,
               date_of_birth: { $ne: null }
@@ -858,8 +792,8 @@ const getVoterAnalytics = async (req, res, next) => {
         db.collection('users').aggregate([
           {
             $match: {
-          role: 'VOTER',
-          nin_verified: true,
+              $or: [{ role: 'VOTER' }, { role: 'USER' }],
+              nin_verified: true,
               registration_completed: true,
               state_id: { $ne: null }
             }
@@ -882,8 +816,8 @@ const getVoterAnalytics = async (req, res, next) => {
         db.collection('users').aggregate([
           {
             $match: {
-          role: 'VOTER',
-          nin_verified: true,
+              $or: [{ role: 'VOTER' }, { role: 'USER' }],
+              nin_verified: true,
               registration_completed: true,
               lga_id: { $ne: null }
             }
@@ -906,7 +840,7 @@ const getVoterAnalytics = async (req, res, next) => {
         db.collection('users').aggregate([
           {
             $match: {
-              role: 'VOTER',
+              $or: [{ role: 'VOTER' }, { role: 'USER' }],
               created_at: { $gte: new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000) }
             }
           },
@@ -949,7 +883,7 @@ const getVoterAnalytics = async (req, res, next) => {
               $limit: 5
             }
           ]).toArray(),
-          db.collection('Election').aggregate([
+          db.collection('elections').aggregate([
             {
               $match: { status: 'COMPLETED' }
             },
@@ -1046,11 +980,7 @@ const getAllElections = async (req, res, next) => {
       const db = client.db('election_system');
       
       // Get elections from both collections
-      const [electionsFromElections, electionsFromElection] = await Promise.all([
-        db.collection('elections').find({}).toArray(),
-        db.collection('Election').find({}).toArray()
-      ]);
-      const allElections = [...electionsFromElections, ...electionsFromElection];
+      const allElections = await db.collection('elections').find({}).toArray();
       
       res.json({
         success: true,
@@ -1129,22 +1059,12 @@ const debugDatabase = async (req, res, next) => {
       console.log('🔍 Debug: Available collections:', collections.map(c => c.name));
       
       // Check elections collections specifically
-      const [electionsCount1, electionsCount2] = await Promise.all([
-        db.collection('elections').countDocuments(),
-        db.collection('Election').countDocuments()
-      ]);
-      const electionsCount = electionsCount1 + electionsCount2;
-      console.log('🔍 Debug: Elections count (elections):', electionsCount1);
-      console.log('🔍 Debug: Elections count (Election):', electionsCount2);
-      console.log('🔍 Debug: Total elections count:', electionsCount);
+      const electionsCount = await db.collection('elections').countDocuments();
+      console.log('🔍 Debug: Elections count:', electionsCount);
       
       // Get all elections
       // Get elections from both collections
-      const [electionsFromElections, electionsFromElection] = await Promise.all([
-        db.collection('elections').find({}).toArray(),
-        db.collection('Election').find({}).toArray()
-      ]);
-      const allElections = [...electionsFromElections, ...electionsFromElection];
+      const allElections = await db.collection('elections').find({}).toArray();
       console.log('🔍 Debug: All elections:', allElections);
       
       res.json({

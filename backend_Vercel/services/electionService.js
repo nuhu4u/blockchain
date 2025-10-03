@@ -200,17 +200,14 @@ class ElectionService {
           
           return {
             id: contestantId, // Store as string
-            name: contestant.name,
-            running_mate: contestant.running_mate || contestant.runningMate,
+            name: contestant.name, // Only editable field
+            running_mate: contestant.running_mate || contestant.runningMate || 'No running mate',
             party: contestant.party || 'Independent',
-            position: contestant.position || index + 1,
+            position: contestant.position || (index + 1).toString(),
             votes: 0,
-            partyPicture: partyPicture,
-            age: contestant.age || 50,
-            qualification: contestant.qualification || 'Political candidate with extensive experience',
-            manifesto: contestant.manifesto || 'Committed to serving the people',
-            experience: contestant.experience || 'Experienced political leader',
-            education: contestant.education || 'University graduate'
+            is_active: true
+            // Note: Detailed info (age, qualification, experience, education) 
+            // is kept static in frontend candidates.ts file
           };
         }),
         states: electionData.states || [],

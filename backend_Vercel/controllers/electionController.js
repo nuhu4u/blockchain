@@ -4,6 +4,7 @@ const { MongoClient } = require('mongodb');
 const blockchainService = require('../blockchain/services/blockchainService');
 const ElectionService = require('../services/electionService');
 const { ethers } = require('ethers');
+const { countVerifiedVoters } = require('../utils/voterUtils');
 
 /**
  * Helper function to recalculate vote counts for an election
@@ -338,7 +339,7 @@ const updateElection = async (req, res, next) => {
     try {
       await client.connect();
       const db = client.db();
-      const electionsCollection = db.collection('Election');
+      const electionsCollection = db.collection('elections');
       
       // Add updated_at timestamp
       updateData.updated_at = new Date();

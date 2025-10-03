@@ -254,10 +254,15 @@ class BlockchainService {
         const contract = new ethers.Contract(contractAddress, contractABI, wallet);
         console.log(`📋 Contract created with address: ${contract.address}`);
         
-        // First register the voter if not already registered
-        console.log(`👤 Registering voter...`);
+        // First register the voter using admin wallet (only admin can register voters)
+        console.log(`👤 Registering voter using admin wallet...`);
         try {
-          const registerTx = await contract.registerVoter(wallet.address);
+          // Create admin wallet for voter registration
+          const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
+          const adminWallet = new ethers.Wallet(adminPrivateKey, this.provider);
+          const adminContract = new ethers.Contract(contractAddress, contractABI, adminWallet);
+          
+          const registerTx = await adminContract.registerVoter(wallet.address);
           console.log(`  - Register Tx Hash: ${registerTx.hash}`);
           console.log(`  - Waiting for registration confirmation...`);
           const registerReceipt = await registerTx.wait();
@@ -583,11 +588,15 @@ class BlockchainService {
       
       const contract = new ethers.Contract(contractAddress, contractABI, wallet);
       
-      // First register the voter if not already registered
+      // First register the voter using admin wallet (only admin can register voters)
       try {
-        const registerTx = await contract.registerVoter(voterAddress);
+        const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
+        const adminWallet = new ethers.Wallet(adminPrivateKey, this.provider);
+        const adminContract = new ethers.Contract(contractAddress, contractABI, adminWallet);
+        
+        const registerTx = await adminContract.registerVoter(voterAddress);
         await registerTx.wait();
-        logger.info(`BlockchainService: Voter ${voterAddress} registered`);
+        logger.info(`BlockchainService: Voter ${voterAddress} registered by admin`);
       } catch (error) {
         // Voter might already be registered, continue
         logger.info(`BlockchainService: Voter registration skipped (might already exist)`);
@@ -639,11 +648,15 @@ class BlockchainService {
       
       const contract = new ethers.Contract(contractAddress, contractABI, wallet);
       
-      // First register the voter if not already registered
+      // First register the voter using admin wallet (only admin can register voters)
       try {
-        const registerTx = await contract.registerVoter(voterAddress);
+        const adminPrivateKey = process.env.ADMIN_PRIVATE_KEY;
+        const adminWallet = new ethers.Wallet(adminPrivateKey, this.provider);
+        const adminContract = new ethers.Contract(contractAddress, contractABI, adminWallet);
+        
+        const registerTx = await adminContract.registerVoter(voterAddress);
         await registerTx.wait();
-        logger.info(`BlockchainService: Voter ${voterAddress} registered`);
+        logger.info(`BlockchainService: Voter ${voterAddress} registered by admin`);
       } catch (error) {
         // Voter might already be registered, continue
         logger.info(`BlockchainService: Voter registration skipped (might already exist)`);
